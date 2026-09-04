@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Cadillac File — An Interactive Record</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{
+    --paper:#f6f2e9; --ink:#1c1c1c; --navy:#1a4a8a; --navy-dark:#0d1b2e;
+    --flag:#8a1a1a; --card:#fffdf7; --line:#d8d2c2; --muted:#6b6355;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--paper);color:var(--ink);font-family:Georgia,'Times New Roman',serif;line-height:1.65;}
+  .wrap{max-width:820px;margin:0 auto;padding:34px 22px 90px;}
+  header{border-bottom:3px double var(--ink);padding-bottom:18px;margin-bottom:10px;}
+  .kicker{font-family:'Courier New',monospace;font-size:12px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;}
+  h1{font-size:34px;color:var(--navy-dark);margin:6px 0 4px;}
+  .sub{font-style:italic;color:var(--muted);}
+  .neutrality{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--navy);padding:14px 16px;margin:18px 0;font-size:14px;}
+  .neutrality b{color:var(--navy-dark);}
+  .chapters-nav{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 26px;}
+  .chip{font-family:'Courier New',monospace;font-size:11px;border:1px solid var(--line);background:var(--card);padding:4px 9px;cursor:pointer;color:var(--muted);}
+  .chip.done{color:var(--ink);border-color:var(--ink);}
+  .chip.current{background:var(--navy-dark);color:var(--paper);border-color:var(--navy-dark);}
+  .chapter{display:none;}
+  .chapter.active{display:block;animation:fade .4s;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  .ch-label{font-family:'Courier New',monospace;font-size:12px;color:var(--flag);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;}
+  h2{font-size:24px;color:var(--navy-dark);margin-bottom:14px;}
+  p{margin-bottom:13px;font-size:16px;}
+  .doc{background:var(--card);border:1px solid var(--line);margin:18px 0;box-shadow:2px 2px 0 rgba(28,28,28,.06);}
+  .doc-head{font-family:'Courier New',monospace;font-size:11px;background:var(--navy-dark);color:var(--paper);padding:7px 10px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px;}
+  .doc-head .src{opacity:.75;}
+  table{width:100%;border-collapse:collapse;font-family:'Courier New',monospace;font-size:13px;}
+  th{text-align:left;padding:7px 10px;background:#e9e2d0;border-bottom:1px solid var(--ink);}
+  td{padding:7px 10px;border-bottom:1px dotted var(--line);}
+  tr.hl td{background:#f8ecd4;}
+  .note{font-size:13px;color:var(--muted);padding:8px 10px;border-top:1px solid var(--line);font-style:italic;}
+  .verdict{border:1px solid var(--line);border-left:4px solid var(--muted);background:var(--card);padding:12px 14px;margin:10px 0;font-size:14px;}
+  .verdict.refuted{border-left-color:var(--flag);}
+  .verdict.supported{border-left-color:#2a6b3f;}
+  .verdict .vtag{font-family:'Courier New',monospace;font-size:11px;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:4px;}
+  .verdict.refuted .vtag{color:var(--flag);}
+  .verdict.supported .vtag{color:#2a6b3f;}
+  .hyp{width:100%;text-align:left;font-family:Georgia,serif;font-size:15px;background:var(--card);border:1px solid var(--ink);padding:12px 14px;margin:8px 0;cursor:pointer;transition:background .15s;}
+  .hyp:hover{background:#efe9da;}
+  .hyp .h{font-family:'Courier New',monospace;font-size:11px;color:var(--muted);display:block;margin-bottom:2px;}
+  .btn{display:inline-block;font-family:'Courier New',monospace;font-size:13px;letter-spacing:1px;background:var(--navy-dark);color:var(--paper);border:none;padding:10px 22px;cursor:pointer;margin-top:16px;}
+  .btn:hover{background:var(--navy);}
+  .btn:disabled{opacity:.35;cursor:default;}
+  .ledger{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px;}
+  @media(max-width:640px){.ledger{grid-template-columns:1fr;}}
+  .ledger .col{border:1px solid var(--line);background:var(--card);padding:14px;}
+  .ledger h3{font-size:15px;margin-bottom:10px;font-family:'Courier New',monospace;letter-spacing:1px;}
+  .col.proven h3{color:#2a6b3f;}
+  .col.open h3{color:var(--flag);}
+  .ledger li{font-size:13.5px;margin:0 0 8px 16px;}
+  .stamp{display:inline-block;font-family:'Courier New',monospace;font-size:11px;border:2px solid var(--flag);color:var(--flag);padding:3px 8px;transform:rotate(-2deg);margin:8px 0;letter-spacing:1px;}
+  .footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);}
+  .qnum{color:var(--flag);font-weight:bold;}
+  #storymap{height:430px;border:1px solid var(--line);background:#e8e4d8;margin:14px 0;}
+  .pinbtn{width:100%;text-align:left;font-family:Georgia,serif;font-size:14px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--navy);padding:10px 12px;margin:7px 0;cursor:pointer;}
+  .pinbtn:hover{background:#efe9da;}
+  .pinbtn .ph{font-family:'Courier New',monospace;font-size:10px;letter-spacing:1px;color:var(--muted);display:block;}
+  .leaflet-popup-content{font-family:Georgia,serif;font-size:13px;line-height:1.5;}
+  .leaflet-popup-content b{color:var(--navy-dark);}
+  .leaflet-popup-content .psrc{font-size:10.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:5px;margin-top:6px;}
+  .progress{font-family:'Courier New',monospace;font-size:11px;color:var(--muted);margin-bottom:2px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Interactive Record &middot; NPDES MI0020257 &middot; Frozen 2026-09-04</div>
+  <h1>The Cadillac File</h1>
+  <div class="sub">A data story from the public record &mdash; nothing added, nothing accused.</div>
+</header>
+
+<div class="neutrality">
+  <b>How to read this story:</b> Every number here comes from an official public record (EPA ICIS-NPDES / ECHO, EPA Superfund profiles), captured September 4, 2026. Where the record is silent, the story says <i>unknown</i>. No individual or entity is accused of wrongdoing; questions of adjudication and intent remain open. This is advisory intelligence, not a legal determination.
+</div>
+
+<nav class="chapters-nav" id="nav"></nav>
+<div id="progress" class="progress"></div>
+
+<!-- ============ PROLOGUE ============ -->
+<section class="chapter" data-ch="0">
+  <div class="ch-label">Prologue</div>
+  <h2>A Small City, A Routine Pull</h2>
+  <p>Cadillac, Michigan. Wexford County. Population approximately 10,000. The municipal wastewater treatment plant is located at 1121 Plett Road and is permitted under NPDES ID MI0020257, discharging to the Clam River watershed (HUC 040601020303).</p>
+  <p>Under the Clean Water Act, the plant self-reports effluent values monthly on Discharge Monitoring Reports (DMRs). Those values enter EPA's ICIS-NPDES database, where automated screening generates violation records for exceedances.</p>
+  <p>On September 4, 2026, a review of Michigan permits with cyanide limits identified non-routine rows at this facility.</p>
+  <p>What follows is the documented record &mdash; and the items the record does not establish.</p>
+  <button class="btn" onclick="next()">Open the file &rarr;</button>
+</section>
+
+<!-- ============ CH 1 ============ -->
+<section class="chapter" data-ch="1">
+  <div class="ch-label">Chapter 1 &middot; The Number</div>
+  <h2>April 2026</h2>
+  <p>Cyanide, Effluent Gross, Outfall 001-A. The plant's permit limit for the monthly average: <b>5.9 &micro;g/L</b>.</p>
+  <p>The April 2026 DMR, as filed:</p>
+  <div class="doc">
+    <div class="doc-head"><span>EXHIBIT A &mdash; ICIS-NPDES DMR ROWS</span><span class="src">EPA ECHO API &middot; pulled 2026-09-04</span></div>
+    <table>
+      <tr><th>Period End</th><th>Stat Base</th><th>Reported</th><th>Limit</th><th>Ratio</th><th>Violation Code</th></tr>
+      <tr class="hl"><td>04/30/2026</td><td>MO AVG</td><td>125 &micro;g/L</td><td>5.9 &micro;g/L</td><td>21.19&times;</td><td><b>BLANK</b></td></tr>
+      <tr class="hl"><td>04/30/2026</td><td>MO AVG</td><td>2.926 lb/d</td><td>0.16 lb/d</td><td>18.29&times;</td><td><b>BLANK</b></td></tr>
+      <tr><td>06/30/2026</td><td>MO AVG</td><td>47.5 &micro;g/L</td><td>5.9 &micro;g/L</td><td>8.05&times;</td><td><b>BLANK</b></td></tr>
+      <tr><td>06/30/2026</td><td>MO AVG</td><td>0.917 lb/d</td><td>0.16 lb/d</td><td>5.73&times;</td><td><b>BLANK</b></td></tr>
+    </table>
+    <div class="note">April daily maximum also reported: 140 &micro;g/L. Both months' mass-load rows exceedance-checked against enforceable ENF limits.</div>
+  </div>
+  <p>The April monthly average is 21.19 times the permit limit. The June monthly average is 8.05 times the limit. These are the facility's reported values as recorded in ICIS-NPDES, unaltered.</p>
+  <p>On each of those rows, the following fields are not populated: violation code, NPDES violation ID, RNC detection code, RNC detection date, exceedance percentage. The same fields are populated on other parameters in the same submissions.</p>
+  <button class="btn" onclick="next()">Why blank? &rarr;</button>
+</section>
+
+<!-- ============ CH 2 ============ -->
+<section class="chapter" data-ch="2">
+  <div class="ch-label">Chapter 2 &middot; The Silence</div>
+  <h2>Four Ways To Explain A Blank Field</h2>
+  <p>A missing violation flag has multiple possible explanations. Each one can be tested against the record:</p>
+  <button class="hyp" onclick="hyp(this,'h1')"><span class="h">HYPOTHESIS 1</span>Processing lag &mdash; the data just hasn't been screened yet.</button>
+  <div class="verdict refuted" id="h1" style="display:none"><span class="vtag">Refuted &mdash; same-DMR proof</span>The April DMR produced keyed coliform violations (vio_ids 3687723885/86) from the same submission. The June DMR produced a keyed BOD violation (vio_id 3689451305). Same submissions, same screener &mdash; the cyanide rows alone received nothing. Not lag.</div>
+  <button class="hyp" onclick="hyp(this,'h2')"><span class="h">HYPOTHESIS 2</span>It's a monitoring-only parameter &mdash; there's no numeric limit to violate.</button>
+  <div class="verdict refuted" id="h2" style="display:none"><span class="vtag">Refuted &mdash; the limit exists</span>Cyanide carries an enforceable ENF limit here: 5.9 &micro;g/L monthly average. This is not monitor-only reporting.</div>
+  <button class="hyp" onclick="hyp(this,'h3')"><span class="h">HYPOTHESIS 3</span>Data entry error &mdash; someone typed the limit in wrong.</button>
+  <div class="verdict" id="h3" style="display:none"><span class="vtag">Partially testable &mdash; systematic, not random</span>The cyanide limit appears in the database correctly (5.9 &micro;g/L, ENF type). What differs is a metadata field: the limit's <i>comparison qualifier</i> is coded '=' rather than '&le;'. And it is not just cyanide &mdash; every water-quality-based toxic limit in this permit version carries the same '=' coding. Systematic, not a typo.</div>
+  <button class="hyp" onclick="hyp(this,'h4')"><span class="h">HYPOTHESIS 4</span>The '=' qualifier changes how the screening system treats the row.</button>
+  <div class="verdict supported" id="h4" style="display:none"><span class="vtag">Empirically demonstrated in the tested sample</span>Across a 22-permit statewide test, every keyed numeric violation on toxic parameters sat on '&le;'-coded limits; every toxic exceedance on '='-coded limits went unflagged. <b>Important:</b> this is an empirical pattern demonstrated in the tested sample &mdash; the written ICIS screening rule itself has not been documented by EPA (open gap, #15). No one is accused of anything here; the <i>why</i> of the coding is an adjudication question.</div>
+  <p style="margin-top:16px">Every flagged numeric violation at this plant 2023&ndash;2026 &mdash; BOD, coliform, ammonia, phosphorus, dissolved oxygen &mdash; sits on a '&le;' or '&ge;' coded limit. Every toxic parameter with '=' coding: arsenic, beryllium, cadmium, copper, silver, selenium, cyanide&hellip; none has ever auto-flagged here.</p>
+  <button class="btn" onclick="next()">Meet the control specimen &rarr;</button>
+</section>
+
+<!-- ============ CH 3 ============ -->
+<section class="chapter" data-ch="3">
+  <div class="ch-label">Chapter 3 &middot; The Control</div>
+  <h2>One Flagged Row, One Unflagged Row</h2>
+  <p>Skeptical? Good. Here is the cleanest test in the file: two rows from the <i>same permit</i>, in the <i>same database</i>, through the <i>same pipeline</i> &mdash; with identical metadata fields.</p>
+  <div class="doc">
+    <div class="doc-head"><span>EXHIBIT F &mdash; CONTROL SPECIMEN</span><span class="src">Same ICIS pipeline &middot; same metadata fields</span></div>
+    <table>
+      <tr><th>Field</th><th>Bromomethane (flagged)</th><th>Cyanide (unflagged)</th></tr>
+      <tr><td>Limit</td><td>(none &mdash; monitor only)</td><td>5.9 &micro;g/L (ENF)</td></tr>
+      <tr><td>Reported value</td><td>1</td><td><b>125</b> (21.19&times; the limit)</td></tr>
+      <tr class="hl"><td>Violation code</td><td><b>D80</b></td><td><b>BLANK</b></td></tr>
+      <tr class="hl"><td>NPDES violation ID</td><td>populated</td><td>BLANK</td></tr>
+      <tr class="hl"><td>RNC detection code</td><td>K (keyed)</td><td>BLANK</td></tr>
+      <tr class="hl"><td>RNC detection date</td><td>populated</td><td>BLANK</td></tr>
+    </table>
+    <div class="note">The bromomethane row &mdash; a parameter with no numeric limit at all &mdash; received a full set of violation metadata. The cyanide row that exceeded an enforceable limit 21-fold received none. (Caveat on the exhibit's face: bromomethane's flags are reporting violations; the numeric-exceedance control is the mercury pair, next chapter.)</div>
+  </div>
+  <p>The pipeline demonstrably keys and populates violation metadata for this permit. The cyanide rows are the exception &mdash; not a facility-wide data outage.</p>
+  <button class="btn" onclick="next()">Statewide &rarr;</button>
+</section>
+
+<!-- ============ CH 4 ============ -->
+<section class="chapter" data-ch="4">
+  <div class="ch-label">Chapter 4 &middot; The Pattern</div>
+  <h2>The Matched Pair</h2>
+  <p>If the '=' coding affects screening, the effect should appear in other permits' data. It does. Michigan, April 2023, mercury, three facilities:</p>
+  <div class="doc">
+    <div class="doc-head"><span>EXHIBIT C &mdash; MERCURY MATCHED PAIR</span><span class="src">ICIS-NPDES &middot; 22-permit test &middot; 2026-09-04</span></div>
+    <table>
+      <tr><th>Facility</th><th>Value vs Limit</th><th>Qualifier</th><th>Result</th></tr>
+      <tr><td>Arbor Hills Remediation Area</td><td>2.18 vs 2.0 ng/L</td><td>&le;</td><td><b>E90 keyed</b></td></tr>
+      <tr><td>Mt. Clemens WWTP</td><td>2.7 vs 1.3 ng/L</td><td>&le;</td><td><b>E90 keyed</b></td></tr>
+      <tr><td>Coopersville WWTP</td><td>1.5 vs 1.3 ng/L</td><td>=</td><td><b>nothing &mdash; no violation of any kind</b></td></tr>
+    </table>
+    <div class="note">Same parameter. Same state screening system. Same month, similar magnitude. Only the qualifier coding differs.</div>
+  </div>
+  <p>The cyanide version of the pattern, statewide &mdash; every '='-coded cyanide exceedance in the tested window went unflagged:</p>
+  <div class="doc">
+    <div class="doc-head"><span>EXHIBIT D &mdash; STATEWIDE ('='-CODED CYANIDE)</span><span class="src">Tested sample</span></div>
+    <table>
+      <tr><th>Facility</th><th>Value vs Limit</th><th>Ratio</th><th>Violation</th></tr>
+      <tr><td>GM Components Holdings, Flint</td><td>25 vs 5.2 &micro;g/L</td><td>4.8&times;</td><td>BLANK</td></tr>
+      <tr><td>Kalamazoo WWTP</td><td>20 vs 10 &micro;g/L</td><td>2.0&times;</td><td>BLANK</td></tr>
+      <tr><td>Dexter WWTP</td><td>0.15 vs 0.12 lb/qtr</td><td>1.25&times;</td><td>BLANK</td></tr>
+      <tr><td>Cadillac WWTP</td><td>125 vs 5.9 &micro;g/L</td><td>21.19&times;</td><td>BLANK</td></tr>
+      <tr><td>Cadillac WWTP</td><td>47.5 vs 5.9 &micro;g/L</td><td>8.05&times;</td><td>BLANK</td></tr>
+    </table>
+    <div class="note">Statewide qualifier coding on current cyanide enforceable limits: 238 '&le;' rows vs 64 '=' rows. The '=' coding is a minority practice &mdash; and Cadillac's own cyanide limit was coded '&le;' in permit versions through 2017, then '=' in the 2024&ndash;2027 version, the one in force during the spikes.</div>
+  </div>
+  <p><b>Discipline:</b> call this what it is &mdash; an empirical pattern, demonstrated in the tested sample. The written EPA/ICIS rule behind it is not yet in hand (open gap #15). And a missing flag cuts both ways: it proves the screener stayed silent; it proves nothing about what any human did or knew.</p>
+  <button class="btn" onclick="next()">The corridor's history &rarr;</button>
+</section>
+
+<!-- ============ CH 5 ============ -->
+<section class="chapter" data-ch="5">
+  <div class="ch-label">Chapter 5 &middot; The Corridor</div>
+  <h2>Cyanide Was Here Before</h2>
+  <p>Cadillac's industrial past includes a Superfund site a mile from the plant: Northernaire Plating, EPA ID 0502440. A chrome-and-nickel electroplating shop that ran from 1971 to 1981. Its waste handling was, in EPA's eventual judgment, improper &mdash; and in 1978, hexavalent chromium turned up in the tap water of two nearby homes.</p>
+  <p>Here is the fact that earns this chapter a place in the file: <b>the EPA's official contaminant list for the site's groundwater includes cyanide</b> (CAS 57-12-5), alongside the plating solvents &mdash; PCE, TCE, the chlorinated ethanes. Standard chemistry for electroplating lines, documented in the 1970s waste streams of this corridor.</p>
+  <p>Cleanup record: EPA removal action July 5, 1983; 1985 remedial investigation (two small Cr(VI) plumes, shallow and intermediate aquifers); pump-and-treat system installed post-1985; 2010 Five-Year Review finding long-term remedial action goals met; treatment discontinued August 3, 2020 with EPA and EGLE concurrence. No Five-Year Reviews since 2010. EPA's current performance measures: human exposure under control &mdash; yes; groundwater migration under control &mdash; yes.</p>
+  <div class="stamp">FRAMING DISCIPLINE &mdash; READ BEFORE CONNECTING DOTS</div>
+  <p>Nothing in the Northernaire record connects a 40-year-old, EPA-judged-controlled groundwater plume to a 2026 spike in <i>sewer effluent</i>. WWTP effluent reflects current inflow to the pipes, not groundwater under the industrial park. The site is context &mdash; proof that cyanide-bearing chemistry has existed in this corridor &mdash; and it is presented here only as that. Source attribution is a separate, open question.</p>
+  <button class="btn" onclick="next()">Who was in the pipes? &rarr;</button>
+</section>
+
+
+<!-- ============ CH: THE MAP ============ -->
+<section class="chapter" data-ch="6">
+  <div class="ch-label">Chapter 6 &middot; The Map</div>
+  <h2>Cadillac, Michigan &mdash; The Sites On The Record</h2>
+  <p>Each pin is a documented location. Open a pin &mdash; or follow the sequence below it &mdash; and the location's documented facts appear. Nothing on this map is an accusation; it is the geography of the record.</p>
+  <div id="storymap"></div>
+  <p style="font-size:12px;color:var(--muted);margin-top:6px">Positions: the WWTP pin uses EPA-documented FRS coordinates (44.263479, -85.396463). The Superfund pins use OpenStreetMap geocodes of their documented street addresses &mdash; not EPA-documented coordinates. Base map &copy; OpenStreetMap contributors. This chapter loads map tiles from the internet; every other chapter works offline.</p>
+
+  <div class="ch-label" style="margin-top:20px">The pins, in story order</div>
+  <button class="pinbtn" onclick="flyTo('wwtp')"><span class="ph">PIN 1 &middot; EPA-DOCUMENTED COORDINATES</span><b>Cadillac WWTP</b> &mdash; 1121 Plett Rd &middot; where the numbers were reported</button>
+  <button class="pinbtn" onclick="flyTo('outfall')"><span class="ph">PIN 2 &middot; DISCHARGE POINT (OUTFALL 001-A)</span><b>The Clam River watershed</b> &mdash; where the effluent goes</button>
+  <button class="pinbtn" onclick="flyTo('northernaire')"><span class="ph">PIN 3 &middot; OSM GEOCODE OF DOCUMENTED ADDRESS</span><b>Northernaire Plating (EPA ID 0502440)</b> &mdash; 1002 6th St &middot; the corridor's documented cyanide history</button>
+  <button class="pinbtn" onclick="flyTo('kysor')"><span class="ph">PIN 4 &middot; OSM GEOCODE OF DOCUMENTED ADDRESS</span><b>Kysor Industrial Corp. (EPA ID 0502480)</b> &mdash; 1100 Wright St &middot; the adjacent site; primary documents not yet in hand</button>
+  <p style="font-size:13px;color:var(--muted);margin-top:12px">Distance note: the Superfund sites are roughly 2 km west-southwest of the WWTP. The map does not imply any pathway between them and the 2026 effluent values &mdash; that question is open (see Chapters 5&ndash;7).</p>
+  <button class="btn" onclick="next()">Continue &rarr;</button>
+</section>
+
+<!-- ============ CH 7 ============ -->
+<section class="chapter" data-ch="7">
+  <div class="ch-label">Chapter 7 &middot; The Industrial Base</div>
+  <h2>Cadillac's Permitted Industrial Users &mdash; What We Know</h2>
+  <p>Where did 125 &micro;g/L come from? The honest answer starts with what the plant actually treats: a small city sewage stream plus <b>19 permitted industrial users</b>, including seven categorical operations (metal fabrication, plating-adjacent processes, finished-metal assembly).</p>
+  
+  <h3 style="font-size:18px;margin-top:18px;margin-bottom:10px;">What Cadillac Documented (2023 Public Notice)</h3>
+  <p>The City published a public notice in 2024 listing facilities that exceeded industrial pretreatment limits. Here's what showed up in the cyanide and metals columns:</p>
+  
+  <div class="doc">
+    <div class="doc-head"><span>EXCERPT &mdash; CADILLAC PUBLIC NOTICE (2024)</span><span class="src">Permitted Industrial Users with documented exceedances</span></div>
+    <table>
+      <tr><th>Facility</th><th>Process</th><th>2023 Exceedances</th><th>Wastewater Volume (2023)</th></tr>
+      <tr class="hl"><td><b>AAR Mobility Systems</b><br><span style="font-size:12px">6th St. & Haynes St.</span></td><td>Tactical mobility systems, cargo pallets, shelter fabrication</td><td>Cyanide (both locations, Q1–Q2 and Q3–Q4)</td><td>~47.0M gal</td></tr>
+      <tr class="hl"><td><b>Rec Boat Holdings</b><br><span style="font-size:12px">Four Winns trailer div.</span></td><td>Steel boat trailers and boats</td><td>Cyanide (Q3–Q4); Copper/Zinc (all 4Q)</td><td>~3.8M gal</td></tr>
+      <tr class="hl"><td><b>Cadillac Castings Inc.</b></td><td>Ductile iron foundry with finishing (CNC, grinding, trim presses)</td><td>Zinc, Cadmium, Silver, Molybdenum (all 2023)</td><td>~41.0M gal</td></tr>
+      <tr><td>FIAMM Technologies</td><td>Automotive horns (metal stamping, plating, assembly)</td><td>Documented in IU program</td><td>Unknown</td></tr>
+      <tr><td>Michigan Rubber Products</td><td>Automotive components with bonded metal inserts</td><td>Copper (all 4Q 2023)</td><td>~1.7M gal</td></tr>
+      <tr><td>ARVCO Containers</td><td>Corrugated packaging and printing</td><td>Copper</td><td>Unknown</td></tr>
+    </table>
+    <div class="note">Abbreviated table showing Cyanide and metal-exceedance facilities only. AAR, Rec Boat, and Cadillac Castings carry the strongest cyanide/metal signature. The 19-user roster, with complete process descriptions, lives in City and EGLE files.</div>
+  </div>
+
+  <h3 style="font-size:18px;margin-top:18px;margin-bottom:10px;">How Industrial Wastewater Becomes A Problem</h3>
+  <p>Cyanide doesn't generate itself. The standard industrial pathways are:</p>
+  <ul style="margin-left:20px;margin-bottom:13px">
+    <li><b>Metal plating (zinc, cadmium, chrome):</b> Cyanide-based baths are standard chemistry. AAR and Rec Boat both receive plated fasteners and hardware &mdash; the question is where that plating happens.</li>
+    <li><b>Steel foundry operations:</b> Cadillac Castings documents itself as a full-service foundry with scrap-melt charging. Contaminated or pre-plated scrap can introduce metal contaminants into the melt and cooling water.</li>
+    <li><b>Post-assembly wash/rinse:</b> Even if parts arrive pre-finished, facility wash systems can mobilize plating residue into rinse water headed for the sewer.</li>
+  </ul>
+  
+  <p><b>Key investigation question:</b> For each facility, does cyanide/metal-bearing wastewater originate from <i>onsite treatment</i> (plating bath, molten metal cooling, wash rinse), or does it arrive in <i>incoming materials</i> (pre-plated fasteners, metal-bearing scrap) and get rinsed/processed onsite?</p>
+
+  <div class="doc">
+    <div class="doc-head"><span>VERY HIGH INVESTIGATION PRIORITY</span><span class="src">Supply-chain sourcing</span></div>
+    <p style="padding:12px 14px;font-size:14px;line-height:1.6">
+    <b>AAR Mobility Systems:</b> Two separate cyanide exceedances (two locations, one year), 47M gallons wastewater. Question: Where do fasteners and plated components originate? Are they arriving pre-finished, or is secondary finishing/coating happening in Cadillac? <br><br>
+    <b>Rec Boat Holdings:</b> Documented cyanide exceedance + copper/zinc across all four quarters 2023. Manufactures steel trailers. Question: What is the source of zinc-plated fasteners? Are they finished at a supplier, or does post-assembly treatment occur in Cadillac? <br><br>
+    <b>Cadillac Castings Inc.:</b> Multi-element exceedances (Zn, Cd, Ag, Mo) across all of 2023, 41M gallons wastewater. Full-service foundry with scrap charging and CNC finishing. Question: What is the source and contamination profile of incoming scrap/charge material? Are plated or contaminated castings entering the melt?
+    </p>
+  </div>
+
+  <h3 style="font-size:18px;margin-top:18px;margin-bottom:10px;">Prior Enforcement: A 6-Year Compliance Failure</h3>
+  <p>In September 2020, EPA documented that the City's Industrial Pretreatment Program had enforcement failures: more than 15% of significant industrial users were out of compliance simultaneously. The City was directed to update its IPP and strengthen enforcement of local limits.</p>
+  <p>In February 2022, the City contracted Fleis &amp; VandenBrink (F&V) to visit all 19 permitted facilities, document their processes, and produce an updated IPP. The F&V evaluation reports &mdash; including individual facility assessments, process flows, and chemical inventories &mdash; should exist in City records.</p>
+  <p><b>As of September 4, 2026</b> (four years later), the updated IPP has not been formally adopted. City Council approved F&V's findings in March 2023, but EGLE is still waiting for the legal authorities and attorney certification required to make local limits enforceable. The December 31, 2026 deadline looms.</p>
+
+  <h3 style="font-size:18px;margin-top:18px;margin-bottom:10px;">What This Means for the April/June 2026 Spikes</h3>
+  <p>The plant experiences SSO/bypass in April 2026 (same month as cyanide peak). EGLE issues NOVs in May and June (contents unknown). Meanwhile, the pretreatment program is still non-compliant: no formal local limits, enforcement incomplete, industrial-user processes not formally documented in force.</p>
+  <p>This does not prove causation. But it establishes a timing and compliance context: the plant was treating sewage from a documented industrial base with known metal/cyanide exceedances, under a pretreatment program that had not yet been updated to current EPA standards.</p>
+
+  <div class="stamp">NO ACCUSATION &mdash; INVESTIGATION FRAMEWORK ONLY</div>
+  <p>No facility, no supplier, no process is being accused. The question is narrower: <b>which of these operations actually generated the April/June discharge, and did the supply chain originate it onsite or upstream?</b> The answer lives in F&V's evaluation files, facility permits, and supplier documentation.</p>
+
+  <button class="btn" onclick="next()">What we need to know &rarr;</button>
+</section>
+
+<!-- ============ CH 9 ============ -->
+<section class="chapter" data-ch="9">
+  <div class="ch-label">Chapter 9 &middot; The Regulatory Collapse</div>
+  <h2>Eight Violations: The City's Pretreatment Program Failure, Documented</h2>
+  
+  <div style="background:#fff3cd;border:1px solid #ffc107;border-left:4px solid #ffc107;padding:14px;margin:14px 0;font-size:14px">
+    <b>Audio narration available:</b> <button onclick="playAudio('chapter-09')" style="font-family:'Courier New',monospace;font-size:12px;padding:6px 14px;background:#333;color:#fff;border:none;cursor:pointer;border-radius:3px">▶ PLAY</button>
+    <audio id="audio-chapter-09" style="margin-left:12px;vertical-align:middle"></audio>
+  </div>
+  
+  <p>While the April and June 2026 cyanide spikes occurred, the City's Industrial Pretreatment Program was actively failing under state scrutiny. EGLE has been documenting those failures since 2020. By August 2026, eight separate violations had been formally issued.</p>
+
+  <h3 style="font-size:18px;margin-top:18px;margin-bottom:10px;">The Eight EGLE Violations (As of August 2026)</h3>
+  
+  <div class="doc">
+    <div class="doc-head"><span>EGLE VIOLATIONS AGAINST CITY'S IPP</span><span class="src">9&10 News, August 10–11, 2026; Cadillac News citations</span></div>
+    <table>
+      <tr><th>Violation Category</th><th>Status</th><th>Significance</th></tr>
+      <tr class="hl"><td><b>Local Limit Modifications</b></td><td>FAILED — still not submitted</td><td>Local limits are the mechanism controlling cyanide/toxic pass-through. No submission = no enforceable limits on industrial discharges.</td></tr>
+      <tr><td>Industrial-User Permits</td><td>Resolved</td><td>IU permit administration and compliance documentation</td></tr>
+      <tr><td>Monitoring &amp; Reporting</td><td>Resolved</td><td>Sample frequency, lab certification, DMR filing</td></tr>
+      <tr><td>Enforcement/Compliance</td><td>Resolved</td><td>SIU compliance history and violation response</td></tr>
+      <tr><td>Industrial-User Notification</td><td>Resolved</td><td>IU permit awareness and acknowledgment</td></tr>
+      <tr><td>Procedures &amp; Documentation</td><td>Resolved</td><td>IPP administrative files and decision records</td></tr>
+      <tr><td>Legal Authority</td><td>Resolved</td><td>City ordinance and enforcement mechanisms</td></tr>
+      <tr><td>Pretreatment Standards</td><td>Resolved</td><td>Discharge standard application and verification</td></tr>
+    </table>
+    <div class="note">Seven of eight violations have been answered by the City. The critical failure: <b>local limits for toxic pollutants have not been formally submitted</b> — they remain in draft as of August 2026, nearly six years after EPA's initial mandate.</div>
+  </div>
+
+  <h3 style="font-size:18px;margin-top:18px;margin-bottom:10px;">Why Local Limits Matter (The Mechanism)</h3>
+  <p>Cyanide doesn't move through a WWTP by accident. Local limits are the written enforceable rules that say: "Facility X can discharge no more than Y &micro;g/L of cyanide into the sewer." Without local limits, the City has no mechanism to tell an industrial user their discharge is over the line.</p>
+  <p>EGLE's mandate in 2020 was clear: update the IPP, establish local limits on toxic metals and cyanide, enforce them. The City contracted F&amp;V to do this work in February 2022. As of August 2026 — four years later — local limits still have not been formally adopted.</p>
+  <p><b>The April and June 2026 cyanide spikes occurred during this gap.</b> The City had documented industrial users with known cyanide exceedances (AAR Mobility, Rec Boat) but no formal local limits to enforce against them.</p>
+
+  <h3 style="font-size:18px;margin-top:18px;margin-bottom:10px;">The May 22, 2026 Notice of Violation</h3>
+  <p>On May 22, 2026, EGLE issued the second formal NOV to the City. News articles and citizen-researcher posts tie this to "local limits for toxic pollutants" — the exact mechanism that failed. This is the "second violation notice" referenced in the EPA ECHO record, issued one month after the April cyanide peak.</p>
+  <p><b>EGLE was telling the City: your local limits are due. You have industrial users with documented metal/cyanide exceedances. You have no formal mechanism to control their discharge.</b></p>
+
+  <h3 style="font-size:18px;margin-top:18px;margin-bottom:10px;">The Record: City's Own Statement</h3>
+  <p>Utilities Director Jeff Dietlin defended the delays to news outlets, characterizing the violations as "administrative delays rather than environmental harm" and stating "It's not that we're polluting the river... technical paperwork."</p>
+  <p>That statement is now preserved — alongside documented cyanide exceedances and the April 16–29 bypass event (16 million gallons of partially treated sewage). The timing overlap is documented. Causation is not claimed.</p>
+
+  <h3 style="font-size:18px;margin-top:18px;margin-bottom:10px;">Cadillac Casting: Monitored User Documented</h3>
+  <p>Cadillac News photo documentation places the city's own Industrial Monitoring Program trailer outside Cadillac Casting collecting samples. Cadillac Casting is a documented monitored industrial user on the City's active inspection record.</p>
+
+  <h3 style="font-size:18px;margin-top:18px;margin-bottom:10px;">Four Winns: Timeline Constraint</h3>
+  <p>Rec Boat Holdings' Four Winns division halted production August 15, 2026 (232 jobs). It was in operation during the April/June spike window — making it a high-priority investigative target for discharge during that period.</p>
+
+  <div class="stamp">TIMING OVERLAP DOCUMENTED &mdash; CAUSATION NOT ESTABLISHED</div>
+  <p>The eight EGLE violations do not directly concern cyanide. But the failure to establish local limits — the exact mechanism governing cyanide discharge — occurred during the spike window. The regulatory backdrop is now clear: the City's pretreatment program was not just incomplete; it was formally cited as noncompliant by the state.</p>
+
+  <button class="btn" onclick="next()">The ledger (final) &rarr;</button>
+</section>
+
+<!-- ============ EPILOGUE ============ -->
+<section class="chapter" data-ch="10">
+  <!-- ============ EPILOGUE ============ -->
+<div class="ch-label">Epilogue &middot; Chapter 10</div>
+  <h2>The Ledger</h2>
+  <p>What the public record establishes, and what it leaves open. Every item on the left is documented; every item on the right is a question the FOIAs are built to answer.</p>
+  <div class="ledger">
+    <div class="col proven">
+      <h3>WHAT IS DOCUMENTED</h3>
+      <ul>
+        <li>April 2026: cyanide monthly average 125 &micro;g/L vs a 5.9 &micro;g/L enforceable limit (21.19&times;)</li>
+        <li>June 2026: 47.5 &micro;g/L (8.05&times;), plus mass-load exceedances both months</li>
+        <li>Those rows carry no violation metadata, while other parameters in the same submissions do</li>
+        <li>The '=' qualifier pattern, empirically demonstrated in a 22-permit tested sample (mercury matched pair)</li>
+        <li>Cadillac's cyanide limit was '&le;'-coded through 2017; the 2024&ndash;2027 version is '='-coded</li>
+        <li>2020 pretreatment enforcement violations (&gt;15% SNC SIU)</li>
+        <li>April 2026 SSO/bypass event and reporting citation</li>
+        <li>Two EGLE NOVs, May 22 and June 10, 2026</li>
+        <li>Cyanide's documented place in the corridor's industrial history (Northernaire, as context only)</li>
+      </ul>
+    </div>
+    <div class="col open">
+      <h3>WHAT REMAINS UNKNOWN</h3>
+      <ul>
+        <li class="qnum">Q1.</li><li style="margin-top:-8px">Fleis & VandenBrink evaluation files (2022–2026) &mdash; process flows, chemical inventories, pretreatment assessments for all 19 facilities</li>
+        <li class="qnum">Q2.</li><li style="margin-top:-8px">AAR Mobility Systems: where do fasteners and plated components originate? Is secondary finishing performed onsite?</li>
+        <li class="qnum">Q3.</li><li style="margin-top:-8px">Rec Boat Holdings: source of zinc-plated fasteners? Post-assembly treatment in Cadillac or pre-finished?</li>
+        <li class="qnum">Q4.</li><li style="margin-top:-8px">Cadillac Castings: scrap/charge material supplier list and contamination profile? Pre-plated castings entering the melt?</li>
+        <li class="qnum">Q5.</li><li style="margin-top:-8px">Industrial pretreatment system status and performance (2023–2026) — which facilities had operational treatment before discharge?</li>
+        <li class="qnum">Q6.</li><li style="margin-top:-8px">April 2026: influent/headworks cyanide? (Process stream vs. industrial source or both?)</li>
+        <li class="qnum">Q7.</li><li style="margin-top:-8px">Contents of EGLE Notices of Violation, May 22 and June 10, 2026. Do they concern industrial discharge compliance?</li>
+        <li class="qnum">Q8.</li><li style="margin-top:-8px">Why are the cyanide limit rows coded so the screener generated no violation metadata? (EPA ICIS rule, open gap)</li>
+        <li>&mdash; The FOIA requests are designed to answer Q1–Q7. Question Q8 requires EPA documentation of its screening methodology.</li>
+      </ul>
+    </div>
+  </div>
+  <p style="margin-top:20px"><b>Summary of posture:</b> The April and June 2026 exceedance values are documented. The absence of violation metadata on those rows is documented. The causes of that absence and the source of the cyanide load are not established by the public record.</p>
+  <p>Cadillac's documented industrial base includes operations with known cyanide/metal exceedances in 2023. Their supply-chain sourcing (which operations generate treatment onsite vs. downstream) and pretreatment system status (which systems were operational during April/June 2026) remain to be established through facility records and FOIA responses. Public-records requests are drafted for City of Cadillac (F&V evaluations, IPP documentation) and Michigan EGLE (inspection records, enforcement history).</p>
+  <div class="stamp">END OF FILE &middot; ADVISORY, NOT LEGAL DETERMINATION</div>
+  <button class="btn" onclick="goto(0)">&laquo; Back to the start</button>
+</section>
+
+<div class="footer">
+  Sources: EPA ICIS-NPDES via ECHO Effluent Charts API; EPA ECHO Detailed Facility Report (FRS 110039750114); EPA Superfund site profiles (Northernaire Plating, EPA ID 0502440); EPA ICIS-NPDES national permit-limits file. All captures 2026-09-04. Companion evidence package: Cadillac_Evidence_Inventory.zip (23 files, SHA-256 manifest).
+</div>
+</div>
+
+<script>
+var CH = document.querySelectorAll('.chapter').length;
+var cur = 0;
+var visited = new Set([0]);
+var map=null, pins={};
+function initMap(){
+  if(map) return;
+  map = L.map('storymap').setView([44.2615,-85.4105], 13);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+  pins.wwtp = L.circleMarker([44.263479,-85.396463],{radius:10,color:'#0d1b2e',fillColor:'#0d1b2e',fillOpacity:.9}).addTo(map)
+    .bindPopup('<b>PIN 1 &mdash; Cadillac WWTP</b><br>1121 Plett Rd &middot; NPDES MI0020257 &middot; Major POTW permit, expires 10/01/2027.<br><br>Documented DMR record: cyanide monthly average <b>125 &micro;g/L vs 5.9 &micro;g/L limit (21.19&times;)</b> April 2026; <b>47.5 vs 5.9 (8.05&times;)</b> June 2026. Violation metadata fields on those rows: not populated.<br><br>Enforcement record: EGLE Notices of Violation 05/22/2026 and 06/10/2026 (contents unknown); SSO/bypass 04/16&ndash;29/2026 with reporting citation under 40 CFR 122.41(l)(6).<div class="psrc">Source: EPA ICIS-NPDES / ECHO DFR, FRS 110039750114 &middot; position: EPA-documented FRS coordinates</div>');
+  pins.outfall = L.circleMarker([44.263479,-85.396463],{radius:15,color:'#1a4a8a',fillColor:false,fillOpacity:0,weight:2,dashArray:'4 4'}).addTo(map)
+    .bindPopup('<b>PIN 2 &mdash; Outfall 001-A discharge</b><br>Exact discharge-point coordinates: not in hand. Receiving water: <b>Clam River</b>, Pleasant Lake&ndash;Clam River subwatershed (HUC 040601020303).<br><br>ATTAINS 2024 assessment: <b>Impaired &mdash; with restoration plan</b>; cause groups: pathogens, PCBs. Recreation use: not supporting. Fish consumption use: not supporting.<div class="psrc">Source: EPA ECHO DFR environmental conditions (ATTAINS 2024)</div>');
+  L.circle([44.263479,-85.396463],{radius:1609,color:'#6b6355',weight:1,fill:false,dashArray:'2 5'}).addTo(map)
+    .bindPopup('<b>1-mile radius (EPA DFR community profile)</b><br>4,204 persons &middot; 1,742 housing units &middot; 47% low income &middot; 24% under 18.<div class="psrc">Source: EPA ECHO DFR, ACS 2023 5-yr</div>');
+  pins.northernaire = L.circleMarker([44.25979,-85.42240],{radius:10,color:'#8a1a1a',fillColor:'#8a1a1a',fillOpacity:.9}).addTo(map)
+    .bindPopup('<b>PIN 3 &mdash; Northernaire Plating (EPA ID 0502440)</b><br>1002 6th St &middot; 12.75 acres &middot; electroplating (chromium/nickel), operated <b>1971&ndash;1981</b>.<br><br>EPA contaminant list, groundwater (OU 02) includes <b>CYANIDE (CAS 57-12-5)</b> with plating solvents (PCE, TCE, DCEs, chloroform, methylene chloride, chromium).<br>Cleanup: 1983 EPA removal action; 1985 RI (two Cr(VI) plumes); pump-and-treat; 2010 Five-Year Review (goals met); treatment discontinued 08/03/2020. Current EPA measures: human exposure under control &mdash; yes; groundwater migration under control &mdash; yes.<br><br><b>No pathway to the 2026 WWTP effluent values is established by this record.</b><div class="psrc">Source: EPA Superfund site profile &middot; position: OSM geocode of documented street address</div>');
+  pins.kysor = L.circleMarker([44.25619,-85.42269],{radius:10,color:'#b07d2b',fillColor:'#b07d2b',fillOpacity:.9}).addTo(map)
+    .bindPopup('<b>PIN 4 &mdash; Kysor Industrial Corp. (EPA ID 0502480)</b><br>1100 Wright St &middot; Cadillac Industrial Park. Documented: VOC plumes in groundwater beneath the industrial park migrating north into Haring Township; the Northernaire Cr(VI) plume commingles with the Kysor VOC plumes at this site.<br><br>Same EPA RPM as Northernaire (Catherine Nield, Region 5). Fall 2025: EPA + Cadillac LDFA sampling of site-related wells for VOCs, Cr(VI), and PFAS (results not in hand).<br><b>ROD/ESD/closure documents: not in hand.</b><div class="psrc">Source: EPA Superfund profiles &middot; position: OSM geocode of documented street address</div>');
+  setTimeout(function(){ map.invalidateSize(); }, 80);
+}
+function flyTo(k){
+  cur = 6; visited.add(6); render(); window.scrollTo(0,0);
+  setTimeout(function(){ initMap(); var ll = pins[k].getLatLng(); map.flyTo([ll.lat, ll.lng], 15, {duration:1.1}); setTimeout(function(){ pins[k].openPopup(); }, 1300); }, 120);
+}
+function render(){
+  document.querySelectorAll('.chapter').forEach(function(s,i){ s.classList.toggle('active', i===cur); });
+  if(cur===6){ setTimeout(function(){ initMap(); }, 60); }
+  var nav = document.getElementById('nav'); nav.innerHTML='';
+  var names=['Prologue','The Number','The Silence','The Control','The Pattern','The Corridor','The Map','The Open Door','The Regulatory Collapse','The Ledger'];
+  for(var i=0;i<CH;i++){
+    (function(i){
+      var b=document.createElement('button');
+      b.className='chip'+(i===cur?' current':(visited.has(i)?' done':''));
+      b.textContent=(i+1)+' '+names[i];
+      b.onclick=function(){ visited.add(i); cur=i; render(); window.scrollTo(0,0); };
+      nav.appendChild(b);
+    })(i);
+  }
+  document.getElementById('progress').textContent='SECTION '+(cur+1)+' OF '+CH+' \u2014 ALL NUMBERS FROM THE OFFICIAL RECORD';
+}
+function next(){ if(cur<CH-1){ cur++; visited.add(cur); render(); window.scrollTo(0,0);} }
+function goto(i){ cur=i; visited.add(i); render(); window.scrollTo(0,0); }
+function hyp(btn,id){
+  var v=document.getElementById(id);
+  var showing = v.style.display==='none';
+  v.style.display = showing?'block':'none';
+  btn.style.borderColor = showing ? '#1c1c1c' : '';
+}
+function playAudio(chapterId){
+  var audioEl = document.getElementById('audio-'+chapterId);
+  if(!audioEl) return alert('Audio not yet available for this chapter.');
+  if(audioEl.src){
+    if(audioEl.paused){ audioEl.play(); } else { audioEl.pause(); }
+  } else {
+    alert('🎙️ Audio narration in production\n\nChapter '+chapterId.toUpperCase()+' will be available as an .mp3 file or via hosted audio URL.\n\nPlaceholder ready for integration:\n'+chapterId);
+  }
+}
+render();
+</script>
+</body>
+</html>
